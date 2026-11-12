@@ -45,7 +45,7 @@ const sha256=async s=>[...new Uint8Array(await crypto.subtle.digest('SHA-256',ne
 const b64=s=>{let x='';new TextEncoder().encode(s).forEach(c=>x+=String.fromCharCode(c));return btoa(x)};
 function toast(t){const e=$('#toast');e.textContent=t;e.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.display='none',3500)}
 /* ===== Database di GitHub lewat server kecil (worker.js) ===== */
-const API=''; /* isi sekali dengan alamat Worker, mis. https://reza-hris.namaanda.workers.dev */
+let API=(localStorage.hris_api||'').replace(/\/+$/,''); /* diisi lewat layar login saat pertama kali */
 let tok=sessionStorage.hris_tok||'';
 const H=()=>({Authorization:'Bearer '+tok,'Content-Type':'application/json'}),out=()=>{sessionStorage.clear();location.reload()};
 const er=async r=>(await r.json().catch(()=>({}))).error||'Server '+r.status;
@@ -182,12 +182,12 @@ function render(){if(!me)return;let p=location.hash.slice(1);const nav=me.role==
  $('#root').innerHTML=`<div class=app><aside><div class=logo><i>RH</i><div><b>Reza HRIS</b><small class=mu>Absensi & Kepegawaian</small></div></div>${nav.map(x=>`<a href="#${x[0]}" class="${x[0]==p?'on':''}">${x[1]}</a>`).join('')}<div class=me><div><b>${esc(me.nama)}</b><br><small class=mu>${me.role}</small></div><button onclick="sessionStorage.clear();location.reload()">Keluar</button></div></aside>
  <main><div class=top><div><h1>${v.t}</h1><p>${v.s}</p></div><div>${v.a||''}</div></div><section>${v.h}</section></main></div>`;if(p=='absen')gpsInit()}
 addEventListener('hashchange',render);
-function loginView(){$('#root').innerHTML=`<div class=center><form class=box onsubmit="return login(event)"><h2>Masuk ke akun Anda</h2><p class=mu>Masukkan username dan password untuk mengakses aplikasi.</p><label>Username<input id=lu required autofocus></label><label>Password<input id=lp type=password required></label><button class=p style=width:100%>Masuk</button></form></div>`}
-async function login(ev){ev.preventDefault();if(!API){toast('Alamat server (API) belum diisi di index.html');return false}const u=$('#lu').value.trim();
+function loginView(){$('#root').innerHTML=`<div class=center><form class=box onsubmit="return login(event)"><h2>Masuk ke akun Anda</h2><p class=mu>Masukkan username dan password untuk mengakses aplikasi.</p>${API?'':'<label>Alamat server (Worker)<input id=la placeholder="https://nama.workers.dev" required></label>'}<label>Username<input id=lu required autofocus></label><label>Password<input id=lp type=password required></label><button class=p style=width:100%>Masuk</button></form></div>`}
+async function login(ev){ev.preventDefault();if(!API){const a=($('#la')||{}).value;if(!a){toast('Isi alamat server (Worker) dulu');return false}API=a.trim().replace(/\/+$/,'');localStorage.hris_api=API}const u=$('#lu').value.trim();
  try{const r=await fetch(API+'/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,hash:await sha256(u+':'+$('#lp').value)})});
  if(r.status==401){toast('Username atau password salah');return false}if(!r.ok)throw new Error(await er(r));
  const j=await r.json();tok=j.token;sessionStorage.hris_tok=tok;sessionStorage.hris_me=j.user.id;await load();me=db.users.find(x=>x.id==j.user.id);render()}
- catch(e){toast('Gagal masuk: '+(e.message=='Failed to fetch'?'tidak bisa terhubung ke Worker. Cek alamat API di index.html.':e.message))}return false}
+ catch(e){if(e.message=='Failed to fetch'){localStorage.removeItem('hris_api');API='';loginView();toast('Tidak bisa terhubung ke Worker. Cek alamat server lalu coba lagi.')}else toast('Gagal masuk: '+e.message)}return false}
 async function boot(){if(tok){try{await load();me=db.users.find(u=>u.id==sessionStorage.hris_me)}catch(e){}}me?render():loginView()}
 boot();
 </script></body></html>
